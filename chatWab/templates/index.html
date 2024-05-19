@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/github.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+    <title>ChatGPT</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <span class="chatgpt-logo">CHATGPT</span>
+        </div>
+        <div class="chat-history">
+            {% for message in history %}
+            <div class="message {{ message.role }}">
+                <img src="{{ '/static/img/system.png' if message.role == 'system' else '/static/img/user.png' }}" alt="{{ message.role }} avatar" class="avatar">
+                <div class="content">
+                    <pre><code>{{ message.content }}</code></pre>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        <div class="chat-controls">
+            <form id="chat-form" class="chat-input">
+                <input type="text" name="user_input" id="user_input" placeholder="输入你的消息..." required>
+                <button type="submit"><i class="fas fa-paper-plane"></i> <span>发送</span></button>
+            </form>
+            <form action="/clear_history" method="post" class="clear-form">
+                <button type="submit" class="clear-button"><i class="fas fa-trash-alt"></i> <span>清除历史记录</span></button>
+            </form>
+        </div>
+    </div>
+    <script src="/static/js/custom.js"></script>
+</body>
+
+</html>
