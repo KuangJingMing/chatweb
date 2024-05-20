@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Data</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #4285f4;
+            --secondary-color: #3367d6;
+            --background-color: #f5f5f5;
+            --text-color: #333333;
+            --white-color: #fff;
+            --shadow-color: rgba(0, 0, 0, 0.1);
+            --hover-bg-color: #f0f4ff;
+            --disabled-bg-color: #e0e0e0;
+            --pattern-bg: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="4" height="4" viewBox="0 0 4 4"%3E%3Cpath fill="%239C92AC" fill-opacity=".4" d="M1 3h1v1H1V3zm2-2h1v1H3V1z"%3E%3C/path%3E%3C/svg%3E');
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            margin: 0;
+            padding: 0;
+            background: var(--background-color) var(--pattern-bg);
+            color: var(--text-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            width: 90%;
+            margin: 40px auto;
+            padding: 30px;
+            background-color: var(--white-color);
+            border-radius: 8px;
+            box-shadow: 0 4px 12px var(--shadow-color);
+            min-height: 80vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--primary-color);
+            margin-bottom: 40px;
+            font-size: 36px;
+            font-weight: 700;
+        }
+
+        .session-list,
+        .message-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            flex-grow: 1;
+            overflow-y: auto;
+        }
+
+        .session-item,
+        .message-item {
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            transition: background-color 0.3s;
+            background-color: var(--white-color);
+            box-shadow: 0 2px 4px var(--shadow-color);
+        }
+
+        .session-item:hover,
+        .message-item:hover {
+            background-color: var(--hover-bg-color);
+            cursor: pointer;
+        }
+
+        .message-item__role {
+            font-weight: 700;
+            color: var(--primary-color);
+            font-size: 18px;
+        }
+
+        .message-item__content {
+            margin-top: 15px;
+            font-size: 16px;
+            line-height: 1.6;
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 40px;
+        }
+
+        .pagination__button {
+            background-color: var(--primary-color);
+            color: var(--white-color);
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            font-family: inherit;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            opacity: 0.8;
+        }
+
+        .pagination__button:disabled {
+            background-color: var(--disabled-bg-color);
+            cursor: not-allowed;
+            display: none;
+        }
+
+        .pagination__button:hover:not(:disabled) {
+            background-color: var(--secondary-color);
+            opacity: 1;
+        }
+
+        .pagination__button svg {
+            margin: 0 8px;
+        }
+
+        .back-button {
+            display: block;
+            margin: 40px auto 0;
+            padding: 12px 24px;
+            background-color: var(--primary-color);
+            color: var(--white-color);
+            text-decoration: none;
+            text-align: center;
+            border-radius: 6px;
+            width: 180px;
+            transition: background-color 0.3s;
+            font-family: inherit;
+            font-size: 18px;
+            opacity: 0.8;
+        }
+
+        .back-button:hover {
+            background-color: var(--secondary-color);
+            opacity: 1;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        @media screen and (max-width: 768px) {
+            body {
+                min-height: auto;
+            }
+
+            .container {
+                width: 100%;
+                min-height: 100vh;
+                border-radius: 0;
+                padding: 20px;
+                box-sizing: border-box;
+                margin: 0;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container" id="main-container">
+        <h1>Chat Sessions</h1>
+        <ul class="session-list" id="session-list"></ul>
+        <div class="pagination">
+            <button id="prev-page" class="pagination__button" onclick="loadSessions(currentPage - 1)">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="24" height="24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                </svg>
+                Previous
+            </button>
+            <button id="next-page" class="pagination__button" onclick="loadSessions(currentPage + 1)">
+                Next
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="24" height="24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                </svg>
+            </button>
+        </div>
+    </div>
+    <div class="container hidden" id="message-container">
+        <h1>Messages</h1>
+        <ul class="message-list" id="message-list"></ul>
+        <a href="#" class="back-button" onclick="showSessionList()">Back to Sessions</a>
+    </div>
+    <script>
+        let currentPage = 1;
+        let totalPages = 1;
+
+        document.addEventListener('DOMContentLoaded', function () {
+            loadSessions(currentPage);
+        });
+
+        function loadSessions(page) {
+            if (page < 1 || page > totalPages) return;
+
+            fetch(`/get_sessions?page=${page}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        console.error(data.error);
+                        return;
+                    }
+
+                    const sessionList = document.getElementById('session-list');
+                    sessionList.innerHTML = '';
+
+                    data.sessions.forEach(session => {
+                        const li = document.createElement('li');
+                        li.className = 'session-item';
+                        li.textContent = session.session_id;
+                        li.addEventListener('click', () => showMessages(session.session_id));
+                        sessionList.appendChild(li);
+                    });
+
+                    currentPage = page;
+                    totalPages = data.total_pages;
+
+                    document.getElementById('prev-page').style.display = currentPage === 1 ? 'none' : 'flex';
+                    document.getElementById('next-page').style.display = currentPage === totalPages ? 'none' : 'flex';
+                })
+                .catch(error => console.error('Error loading sessions:', error));
+        }
+
+        function showMessages(session_id) {
+            const mainContainer = document.getElementById('main-container');
+            const messageContainer = document.getElementById('message-container');
+            mainContainer.classList.add('hidden');
+            messageContainer.classList.remove('hidden');
+
+            fetch(`/get_messages/${session_id}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        console.error(data.error);
+                        return;
+                    }
+
+                    const messageList = document.getElementById('message-list');
+                    messageList.innerHTML = '';
+
+                    data.messages.forEach(message => {
+                        const li = document.createElement('li');
+                        li.className = 'message-item';
+                        li.innerHTML = `
+                            <div class="message-item__role">${message.role}:</div>
+                            <div class="message-item__content">${message.content}</div>
+                            <div class="timestamp">${new Date(message.timestamp).toLocaleString()}</div>
+                        `;
+                        messageList.appendChild(li);
+                    });
+                })
+                .catch(error => console.error('Error loading messages:', error));
+        }
+
+        function showSessionList() {
+            const mainContainer = document.getElementById('main-container');
+            const messageContainer = document.getElementById('message-container');
+            mainContainer.classList.remove('hidden');
+            messageContainer.classList.add('hidden');
+        }
+    </script>
+</body>
+
+</html>

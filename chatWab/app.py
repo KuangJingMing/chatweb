@@ -1,5 +1,8 @@
 from flask import Flask, request, render_template, session, redirect, url_for, jsonify
 from datetime import datetime
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import func
+from flask_migrate import Migrate
 import os
 from openai import OpenAI
 import uuid
@@ -9,10 +12,28 @@ app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'SECRET_KEY')
 client = OpenAI(api_key=os.environ.get('OPENAI_API_KEY'))
 MAX_MESSAGES = 40
-SYSTEM_ROLE = ""
+
+db_path = r'C:\Users\kjmsd\Desktop\chatWab\chat_histories\database.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + db_path
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+db = SQLAlchemy(app)
+migrate = Migrate(app, db)
 
 with open("./SystemRole/role.txt", "r") as f:
     SYSTEM_ROLE = f.read()
+
+class ChatHistory(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    session_id = db.Column(db.String(36), nullable=False)
+    role = db.Column(db.String(10), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    __table_args__ = (db.UniqueConstraint('session_id', 'content', name='_session_content_uc'),)
+
+    def __repr__(self):
+        return f'<ChatHistory {self.role}: {self.content[:20]}>'
 
 @app.route("/", methods=["GET", "POST"])
 def chat():
@@ -27,21 +48,24 @@ def ensure_session_keys():
     session.setdefault('chat_history', [])
 
 def post_chat(user_input):
-    chat_history = session.get('chat_history', [])
+    session_id = session.get('session_id')
+    chat_history = [
+        {'role': entry.role, 'content': entry.content}
+        for entry in ChatHistory.query.filter_by(session_id=session_id).all()
+    ]
     chat_history.append({"role": "user", "content": user_input})
     chat_history = handle_system_response(chat_history, user_input)
-    session['chat_history'] = chat_history
-    session.modified = True
     save_chat_history(chat_history)
     return jsonify({"system_message": chat_history[-1]["content"]})
 
 def handle_system_response(chat_history, user_input):
     try:
         last_messages = chat_history[-MAX_MESSAGES:] if len(chat_history) > MAX_MESSAGES else chat_history
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo-0125",
-            messages=[{"role": "system", "content": SYSTEM_ROLE}] + last_messages
-        )
+        messages = [{"role": "system", "content": SYSTEM_ROLE}] + [
+            {"role": entry["role"], "content": entry["content"]} for entry in last_messages
+        ]
+        response = client.chat.completions.create(model="gpt-3.5-turbo",
+        messages=messages)
         system_response = response.choices[0].message.content
         chat_history.append({"role": "system", "content": system_response})
     except Exception as e:
@@ -50,33 +74,77 @@ def handle_system_response(chat_history, user_input):
     return chat_history
 
 def get_chat():
-    return render_template("index.html", history=session.get('chat_history', []))
+    session_id = session.get('session_id')
+    history = [
+        {'role': entry.role, 'content': entry.content}
+        for entry in ChatHistory.query.filter_by(session_id=session_id).all()
+    ]
+    return render_template("index.html", history=history)
 
 def save_chat_history(chat_history):
-    directory = os.path.join(os.getcwd(), "chat_histories")
-    os.makedirs(directory, exist_ok=True)
+    session_id = session.get('session_id')
 
-    current_time = datetime.now().strftime("%Y-%m-%d-%H:%M")
-    filename = f"chat_history_{current_time}.txt"
-    file_path = os.path.join(directory, filename)
+    # 获取现有记录的内容
+    existing_entries = {entry.content for entry in ChatHistory.query.filter_by(session_id=session_id).all()}
 
-    try:
-        with open(file_path, 'w') as file:
-            for index, entry in enumerate(chat_history, start=1):
-                file.write(f"{index}. {entry['role']}: {entry['content']}\n")
-    except IOError as e:
-        print(f"Failed to save chat history to {file_path}: {e}")
-    except Exception as e:
-        print(f"An unexpected error occurred while saving chat history: {e}")
+    # 插入新记录
+    new_entries = [
+        entry for entry in chat_history
+        if entry['content'] not in existing_entries
+    ]
+    for entry in new_entries:
+        if not ChatHistory.query.filter_by(session_id=session_id, content=entry['content']).first():
+            chat_entry = ChatHistory(
+                session_id=session_id,
+                role=entry['role'],
+                content=entry['content']
+            )
+            db.session.add(chat_entry)
 
-    print(f"Chat history successfully saved to {file_path}")
+    db.session.commit()
 
 @app.route('/clear_history', methods=['POST'])
 def clear_history():
-    save_chat_history(session.get('chat_history', []))
+    session_id = session.get('session_id')
+    ChatHistory.query.filter_by(session_id=session_id).delete()
+    db.session.commit()
     session['chat_history'] = []
     session.modified = True
     return redirect(url_for('chat'))
+
+@app.route('/view_data')
+def view_data():
+    return render_template('view_data.html')
+
+@app.route("/get_sessions", methods=["GET"])
+def get_sessions():
+    try:
+        page = request.args.get('page', 1, type=int)
+        per_page = 20  # 每页加载20个会话
+        pagination = db.session.query(ChatHistory.session_id).distinct().paginate(page=page, per_page=per_page, error_out=False)
+        sessions = [{'session_id': session.session_id} for session in pagination.items]
+        return jsonify({'sessions': sessions, 'total_pages': pagination.pages})
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+@app.route("/get_messages/<session_id>", methods=["GET"])
+def get_messages(session_id):
+    try:
+        messages = ChatHistory.query.filter_by(session_id=session_id).all()
+        message_data = [
+            {
+                'id': message.id,
+                'session_id': message.session_id,
+                'role': message.role,
+                'content': message.content,
+                'timestamp': message.timestamp
+            }
+        for message in messages]
+        return jsonify({'messages': message_data})
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=5000, debug=True)
