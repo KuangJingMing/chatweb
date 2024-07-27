@@ -7,13 +7,22 @@ import os
 from openai import OpenAI
 import uuid
 import traceback
+from dotenv import load_dotenv
+
+# 加载环境变量
+load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'SECRET_KEY')
 client = OpenAI(api_key=os.environ.get('OPENAI_API_KEY'))
 MAX_MESSAGES = 40
 
-db_path = r'C:\Users\kjmsd\Desktop\chatWab\chat_histories\database.db'
+db_dir = "/root/chatweb/chatWab"
+db_path = os.path.join(db_dir, "chat.db")
+
+if not os.path.exists(db_dir):
+    os.makedirs(db_dir)
+
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + db_path
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -64,7 +73,7 @@ def handle_system_response(chat_history, user_input):
         messages = [{"role": "system", "content": SYSTEM_ROLE}] + [
             {"role": entry["role"], "content": entry["content"]} for entry in last_messages
         ]
-        response = client.chat.completions.create(model="gpt-3.5-turbo",
+        response = client.chat.completions.create(model="gpt-4o-mini",
         messages=messages)
         system_response = response.choices[0].message.content
         chat_history.append({"role": "system", "content": system_response})
